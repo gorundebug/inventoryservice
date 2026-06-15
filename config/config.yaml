@@ -1,0 +1,10 @@
+dataConnectors:
+  inventoryServiceApi:
+    address: $inventoryServiceApiAddress
+services:
+  inventoryService:
+    environment: $inventoryServiceEnvironment
+    grpcHost: $inventoryServiceGrpcHost
+    grpcPort: $inventoryServiceGrpcPort
+    httpHost: $inventoryServiceHttpHost
+    httpPort: $inventoryServiceHttpPort
