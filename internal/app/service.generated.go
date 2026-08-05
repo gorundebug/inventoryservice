@@ -22,6 +22,7 @@ import (
 	"github.com/gorundebug/servicelib/transformation"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/stats"
 
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi"
 	"github.com/gorundebug/inventoryservice/internal/config"
@@ -120,15 +121,19 @@ func (s *Service) initMakers(ctx context.Context) error {
 	if s.grpcServerMaker == nil {
 		s.grpcServerMaker = func(_ context.Context, env runtime.RuntimeEnvironment) (*grpc.Server, error) {
 			var opts []grpc.ServerOption
-			if te := env.TracingEngine(); te != nil {
-				if h := te.GRPCStatsHandler(); h != nil {
-					opts = append(opts, grpc.StatsHandler(h))
-				}
-			}
+			var statsHandlers []stats.Handler
 			if me := env.MetricsEngine(); me != nil {
 				if h := me.GRPCStatsHandler(); h != nil {
-					opts = append(opts, grpc.StatsHandler(h))
+					statsHandlers = append(statsHandlers, h)
 				}
+			}
+			if te := env.TracingEngine(); te != nil {
+				if h := te.GRPCStatsHandler(); h != nil {
+					statsHandlers = append(statsHandlers, h)
+				}
+			}
+			if h := runtime.CombineGRPCStatsHandlers(statsHandlers...); h != nil {
+				opts = append(opts, grpc.StatsHandler(h))
 			}
 			return grpc.NewServer(opts...), nil
 		}

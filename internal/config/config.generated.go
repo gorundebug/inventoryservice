@@ -54,9 +54,12 @@ type Config struct {
 	} `yaml:"endpoints" mapstructure:"endpoints"`
 
 	Pools struct {
+		InventoryPriorityWorkers cfg.PoolConfig `yaml:"inventoryPriorityWorkers" mapstructure:"inventoryPriorityWorkers"`
 	} `yaml:"pools" mapstructure:"pools"`
 
 	Links struct {
+		GetInventoryItemDataToMergeInventoryResult cfg.LinkConfig `yaml:"getInventoryItemDataToMergeInventoryResult" mapstructure:"getInventoryItemDataToMergeInventoryResult"`
+		ProcessInventoryItemToGetInventoryItemData cfg.LinkConfig `yaml:"processInventoryItemToGetInventoryItemData" mapstructure:"processInventoryItemToGetInventoryItemData"`
 	} `yaml:"links" mapstructure:"links"`
 
 	Modules struct {
@@ -105,11 +108,16 @@ func (c *Config) GetEndpoints() []cfg.EndpointConfig {
 }
 
 func (c *Config) GetPools() []*cfg.PoolConfig {
-	return []*cfg.PoolConfig{}
+	return []*cfg.PoolConfig{
+		&c.Pools.InventoryPriorityWorkers,
+	}
 }
 
 func (c *Config) GetLinks() []*cfg.LinkConfig {
-	return []*cfg.LinkConfig{}
+	return []*cfg.LinkConfig{
+		&c.Links.GetInventoryItemDataToMergeInventoryResult,
+		&c.Links.ProcessInventoryItemToGetInventoryItemData,
+	}
 }
 
 func (c *Config) GetModules() []*cfg.ModuleConfig {
@@ -128,7 +136,16 @@ func (c *Config) GetTypes() []*cfg.TypeConfig {
 }
 
 func (c *Config) ApplyEnvironment() error {
+	if err := c.applyInventoryPriorityWorkersExecutorsCount(); err != nil {
+		return err
+	}
 	if err := c.applyInventoryServiceApiAddress(); err != nil {
+		return err
+	}
+	if err := c.applyInventoryServiceApiConnectionsCount(); err != nil {
+		return err
+	}
+	if err := c.applyInventoryServiceDefaultGrpcTimeout(); err != nil {
 		return err
 	}
 	if err := c.applyInventoryServiceEnvironment(); err != nil {
@@ -149,6 +166,21 @@ func (c *Config) ApplyEnvironment() error {
 	return nil
 }
 
+func (c *Config) applyInventoryPriorityWorkersExecutorsCount() error {
+	value, exists := os.LookupEnv("INVENTORY_PRIORITY_WORKERS_EXECUTORS_COUNT")
+	if !exists {
+		return nil
+	}
+
+	intVal, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("failed to convert INVENTORY_PRIORITY_WORKERS_EXECUTORS_COUNT to int: %w", err)
+	}
+	c.Pools.InventoryPriorityWorkers.ExecutorsCount = intVal
+
+	return nil
+}
+
 func (c *Config) applyInventoryServiceApiAddress() error {
 	value, exists := os.LookupEnv("INVENTORY_SERVICE_API_ADDRESS")
 	if !exists {
@@ -156,6 +188,36 @@ func (c *Config) applyInventoryServiceApiAddress() error {
 	}
 
 	c.DataConnectors.InventoryServiceApi.Address = value
+
+	return nil
+}
+
+func (c *Config) applyInventoryServiceApiConnectionsCount() error {
+	value, exists := os.LookupEnv("INVENTORY_SERVICE_API_CONNECTIONS_COUNT")
+	if !exists {
+		return nil
+	}
+
+	intVal, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("failed to convert INVENTORY_SERVICE_API_CONNECTIONS_COUNT to int: %w", err)
+	}
+	c.DataConnectors.InventoryServiceApi.ConnectionsCount = intVal
+
+	return nil
+}
+
+func (c *Config) applyInventoryServiceDefaultGrpcTimeout() error {
+	value, exists := os.LookupEnv("INVENTORY_SERVICE_DEFAULT_GRPC_TIMEOUT")
+	if !exists {
+		return nil
+	}
+
+	intVal, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("failed to convert INVENTORY_SERVICE_DEFAULT_GRPC_TIMEOUT to int: %w", err)
+	}
+	c.Services.InventoryService.DefaultGrpcTimeout = intVal
 
 	return nil
 }
@@ -257,8 +319,8 @@ func MakeConfig() *Config {
 				Pipeline:            "inventoryItem",
 				IdService:           inventoryServiceServiceID,
 				IdSource:            processInventoryItemStreamID,
-				XPos:                400,
-				YPos:                -261,
+				XPos:                487,
+				YPos:                -372,
 				FunctionName:        "GetInventoryItemData",
 				FunctionDescription: "Look up the inventory record by OrderItem.SKU; retrieve current stock and UnitPrice from the record.\nAlways copy OrderID, ItemID, SKU, RequestedQty (=OrderItem.Quantity), UnitPrice into the result.\nIf stock >= OrderItem.Quantity: reserve the stock atomically and emit\nOrderItemResult{OrderID, ItemID, SKU, RequestedQty, UnitPrice, Reserved: true, Status: CONFIRMED, AvailableQty: OrderItem.Quantity} via out.\nIf stock is insufficient: emit\nOrderItemResult{OrderID, ItemID, SKU, RequestedQty, UnitPrice, Reserved: false, Status: OUT_OF_STOCK, AvailableQty: actual available} via rout.\n",
 			},
@@ -279,8 +341,8 @@ func MakeConfig() *Config {
 				Pipeline:   "inventoryItem",
 				IdService:  inventoryServiceServiceID,
 				IdSource:   mergeInventoryResultStreamID,
-				XPos:       131,
-				YPos:       -165,
+				XPos:       203,
+				YPos:       -465,
 				ValueType:  "OrderItem",
 				IdEndpoint: processOrderItemEndpointID,
 			},
@@ -289,11 +351,12 @@ func MakeConfig() *Config {
 			InventoryServiceApi cfg.GrpcDataConnectorConfig `yaml:"inventoryServiceApi" mapstructure:"inventoryServiceApi"`
 		}{
 			InventoryServiceApi: cfg.GrpcDataConnectorConfig{
-				ID:             inventoryServiceApiConnectorID,
-				Name:           "Inventory Service API",
-				Implementation: api.DataConnectorImplementationGoogleGRPC,
-				Module:         "inventory_service_api",
-				Address:        "dns:///localhost:9202",
+				ID:               inventoryServiceApiConnectorID,
+				Name:             "Inventory Service API",
+				Implementation:   api.DataConnectorImplementationGoogleGRPC,
+				Module:           "inventory_service_api",
+				Address:          "dns:///localhost:9202",
+				ConnectionsCount: 1,
 			},
 		},
 		Endpoints: struct {
@@ -310,9 +373,35 @@ func MakeConfig() *Config {
 			},
 		},
 		Pools: struct {
-		}{},
+			InventoryPriorityWorkers cfg.PoolConfig `yaml:"inventoryPriorityWorkers" mapstructure:"inventoryPriorityWorkers"`
+		}{
+			InventoryPriorityWorkers: cfg.PoolConfig{
+				Name:           "Inventory Priority Workers",
+				ExecutorsCount: 2,
+			},
+		},
 		Links: struct {
-		}{},
+			GetInventoryItemDataToMergeInventoryResult cfg.LinkConfig `yaml:"getInventoryItemDataToMergeInventoryResult" mapstructure:"getInventoryItemDataToMergeInventoryResult"`
+			ProcessInventoryItemToGetInventoryItemData cfg.LinkConfig `yaml:"processInventoryItemToGetInventoryItemData" mapstructure:"processInventoryItemToGetInventoryItemData"`
+		}{
+			GetInventoryItemDataToMergeInventoryResult: cfg.LinkConfig{
+				From: getInventoryItemDataStreamID,
+				To:   mergeInventoryResultStreamID,
+				CallSemantics: &cfg.CallSemanticsGroup{
+					ParallelCall: &cfg.ParallelCallSemanticsConfig{},
+				},
+			},
+			ProcessInventoryItemToGetInventoryItemData: cfg.LinkConfig{
+				From: processInventoryItemStreamID,
+				To:   getInventoryItemDataStreamID,
+				CallSemantics: &cfg.CallSemanticsGroup{
+					PriorityTaskPool: &cfg.PriorityTaskPoolCallSemanticsConfig{
+						PoolName: "Inventory Priority Workers",
+						Priority: 10,
+					},
+				},
+			},
+		},
 		Modules: struct {
 			InventoryServiceApi cfg.ModuleConfig `yaml:"inventoryServiceApi" mapstructure:"inventoryServiceApi"`
 			Model               cfg.ModuleConfig `yaml:"model" mapstructure:"model"`

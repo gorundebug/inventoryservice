@@ -7,7 +7,7 @@ OrderItemResult"]]
   s2[/"Get Inventory Item Error
 OrderItemResult"/]
   s3(("Merge Inventory Result"))
-  s4(["Process Inventory Item 
+  s4(["Process Inventory Item
 OrderItem"])
   s4 --> s1
   s1 --> s2

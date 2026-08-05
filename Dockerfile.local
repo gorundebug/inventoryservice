@@ -17,7 +17,7 @@ WORKDIR /app
 
 COPY bin/inventoryservice ./service
 COPY inventoryservice/config/ ./config/
-COPY inventoryservice/docker-entrypoint.sh ./docker-entrypoint.sh
+COPY inventoryservice/docker-entrypoint.generated.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
 EXPOSE 9092

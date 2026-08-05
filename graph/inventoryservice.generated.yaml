@@ -1,6 +1,8 @@
 dataConnectors:
     inventoryServiceApi:
         address: dns:///localhost:9202
+        connectionsCount: 1
+        cppImplementation: userver/grpc
         endpoints:
             processOrderItem:
                 functionDescription: |
@@ -16,10 +18,16 @@ dataConnectors:
                 methodName: ProcessOrderItem
                 name: Process Order Item
                 publicFunction: false
-        implementation: google/grpc
+        goImplementation: google/grpc
         module: inventory_service_api
         name: Inventory Service API
+        pythonImplementation: google/grpc
+        rustImplementation: rust/tonic
         type: gRPC
+pools:
+    inventoryPriorityWorkers:
+        executorsCount: 2
+        name: Inventory Priority Workers
 services:
     inventoryService:
         color: '#D2E5FF'
@@ -30,6 +38,17 @@ services:
         grpcPort: 9202
         httpHost: 0.0.0.0
         httpPort: 9092
+        links:
+            link1:
+                callSemantics: ParallelCall
+                from: getInventoryItemData
+                to: mergeInventoryResult
+            link2:
+                callSemantics: PriorityTaskPool
+                from: processInventoryItem
+                poolName: Inventory Priority Workers
+                priority: 10
+                to: getInventoryItemData
         metricsHandler: metrics
         modulePath: github.com/gorundebug/inventoryservice
         name: Inventory Service
@@ -52,8 +71,8 @@ services:
                     source: processInventoryItem
                     type: Process
                     valueType: orderItemResult
-                    xPos: 400
-                    yPos: -261
+                    xPos: 487
+                    yPos: -372
                 getInventoryItemError:
                     functionDescription: |
                         Convert an error from GetInventoryItemData into an OrderItemResult.
@@ -83,15 +102,15 @@ services:
                     source: mergeInventoryResult
                     type: Input
                     valueType: orderItem
-                    xPos: 131
-                    yPos: -165
+                    xPos: 203
+                    yPos: -465
         programmingLanguage: GoLang
         shutdownTimeout: 30000
         statusHandler: status
 settings:
     moduleVersion: v0.0.1
     name: Example
-    repoPath: github.com/gorundebug/example
+    repoPath: github.com/gorundebug/goexample
 types:
     orderItem:
         definitionFormat: Native
@@ -103,7 +122,7 @@ types:
         type: struct
     orderItemResult:
         definitionFormat: Native
-        description: 'Inventory reservation result for a single order item. Fields: OrderID string, ItemID string, SKU string, RequestedQty int, AvailableQty int, Reserved bool, Status string (CONFIRMED / OUT_OF_STOCK), UnitPrice float64.'
+        description: 'Inventory reservation result for a single order item. Fields: OrderID string, ItemID string, SKU string, RequestedQty int, AvailableQty int, Reserved bool, Status string (CONFIRMED / OUT_OF_STOCK / PROCESSING_ERROR), UnitPrice float64, Error string.'
         module: model
         name: OrderItemResult
         publicType: false
