@@ -171,7 +171,7 @@ func (s *Service) buildRuntime(ctx context.Context) error {
 		}
 	}
 
-	if err := s.initFunctions(ctx, cfg); err != nil {
+	if err := s.initFunctions(ctx, cfg, s); err != nil {
 		return fmt.Errorf("init functions failed: %w", err)
 	}
 
@@ -179,17 +179,16 @@ func (s *Service) buildRuntime(ctx context.Context) error {
 		return fmt.Errorf("custom functions init failed: %w", err)
 	}
 
-	if err := s.initStreams(ctx); err != nil {
+	if err := s.initStreams(ctx, cfg, s); err != nil {
 		return fmt.Errorf("init streams failed: %w", err)
 	}
 
 	return nil
 }
 
-func (s *Service) initStreams(ctx context.Context) error {
-	cfg := s.Config()
+func (s *Service) initStreams(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
 	var err error
-	if s.streams.processInventoryItem, err = transformation.Input[*types.OrderItem, *types.OrderItemResult, error](&cfg.Streams.ProcessInventoryItem, s); err != nil {
+	if s.streams.processInventoryItem, err = transformation.Input[*types.OrderItem, *types.OrderItemResult, error](&cfg.Streams.ProcessInventoryItem, env); err != nil {
 		return err
 	}
 	if s.streams.getInventoryItemData, err = transformation.Process[*types.OrderItem, *types.OrderItemResult, *types.OrderItemResult](&cfg.Streams.GetInventoryItemData, s.streams.processInventoryItem, s.functions.getInventoryItemData); err != nil {
@@ -210,24 +209,66 @@ func (s *Service) initStreams(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) initFunctions(ctx context.Context, cfg *config.Config) error {
+func (s *Service) initFunctions(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	if s.makers.getInventoryItemDataMaker != nil {
 		eg.Go(func() error {
 			var err error
-			s.functions.getInventoryItemData, err = s.makers.getInventoryItemDataMaker(egCtx, &cfg.Streams.GetInventoryItemData, s)
+			s.functions.getInventoryItemData, err = s.makers.getInventoryItemDataMaker(egCtx, &cfg.Streams.GetInventoryItemData, env)
 			return err
 		})
 	}
 	if s.makers.processOrderItemMaker != nil {
 		eg.Go(func() error {
 			var err error
-			s.functions.processOrderItem, err = s.makers.processOrderItemMaker(egCtx, &cfg.Endpoints.ProcessOrderItem, s)
+			s.functions.processOrderItem, err = s.makers.processOrderItemMaker(egCtx, &cfg.Endpoints.ProcessOrderItem, env)
 			return err
 		})
 	}
 	if err := eg.Wait(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// buildWorkflowGraph constructs a fresh graph without creating process-owned
+// servers, clients, exporters, watchers or OS-backed executors.
+func (s *Service) buildWorkflowGraph(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
+	if err := s.initMakers(ctx); err != nil {
+		return fmt.Errorf("init Workflow makers failed: %w", err)
+	}
+	if err := s.customMakersInit(ctx); err != nil {
+		return fmt.Errorf("custom Workflow makers failed: %w", err)
+	}
+	if err := s.initWorkflowFunctions(ctx, cfg, env); err != nil {
+		return fmt.Errorf("init Workflow functions failed: %w", err)
+	}
+	if err := s.customFunctionsInit(ctx); err != nil {
+		return fmt.Errorf("custom Workflow functions failed: %w", err)
+	}
+	if err := s.initStreams(ctx, cfg, env); err != nil {
+		return fmt.Errorf("init Workflow streams failed: %w", err)
+	}
+	return nil
+}
+
+// Workflow function makers run in a stable generated order. The ordinary
+// service keeps initializer-group goroutines; a Temporal Workflow must not use
+// process goroutines during replayable graph construction.
+func (s *Service) initWorkflowFunctions(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
+	if s.makers.getInventoryItemDataMaker != nil {
+		value, err := s.makers.getInventoryItemDataMaker(ctx, &cfg.Streams.GetInventoryItemData, env)
+		if err != nil {
+			return err
+		}
+		s.functions.getInventoryItemData = value
+	}
+	if s.makers.processOrderItemMaker != nil {
+		value, err := s.makers.processOrderItemMaker(ctx, &cfg.Endpoints.ProcessOrderItem, env)
+		if err != nil {
+			return err
+		}
+		s.functions.processOrderItem = value
 	}
 	return nil
 }
