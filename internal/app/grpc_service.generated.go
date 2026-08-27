@@ -14,5 +14,5 @@ type GrpcService struct {
 }
 
 func (s *GrpcService) ProcessOrderItem(ctx context.Context, request *processorderitem.ProcessOrderItemRequest) (*processorderitem.ProcessOrderItemResponse, error) {
-	return s.service.handlers.processOrderItem(ctx, request)
+	return s.service.handlers.endpointProcessOrderItemSource(ctx, request)
 }

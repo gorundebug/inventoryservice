@@ -325,6 +325,7 @@ func MakeConfig() *Config {
 				IdSource:            processInventoryItemStreamID,
 				XPos:                527,
 				YPos:                -562,
+				FunctionPackage:     "inventoryItem",
 				FunctionName:        "GetInventoryItemData",
 				FunctionDescription: "Reserve the requested quantity without allowing concurrent orders to overdraw stock.\nOn success, return CONFIRMED with the requested quantity available. Otherwise return OUT_OF_STOCK with the current available quantity.\nPreserve the order and item identity, requested quantity, and unit price.\nThe example starts with SKU-001: 100, SKU-002: 50, and SKU-003: 25.\n",
 			},
@@ -373,6 +374,7 @@ func MakeConfig() *Config {
 				GrpcMethodType:      api.GrpcMethodTypeNoStreaming,
 				MethodName:          "ProcessOrderItem",
 				FunctionName:        "ProcessOrderItem",
+				FunctionPackage:     "endpoint",
 				FunctionDescription: "Reserve inventory for one order item using its order ID, item ID, SKU, and quantity.\nReturn the available quantity, reservation outcome, and status. The caller combines this response with the original identity, requested quantity, and unit price.\nIf the inventory call fails, the caller returns a non-reserved PROCESSING_ERROR result with the failure message.\n",
 			},
 		},
@@ -392,16 +394,14 @@ func MakeConfig() *Config {
 				From: getInventoryItemDataStreamID,
 				To:   mergeInventoryResultStreamID,
 				CallSemantics: &cfg.CallSemanticsGroup{
-					ParallelCall: &cfg.ParallelCallSemanticsConfig{},
+					FunctionCall: &cfg.FunctionCallSemanticsConfig{},
 				},
 			},
 			ProcessInventoryItemToGetInventoryItemData: cfg.LinkConfig{
 				From: processInventoryItemStreamID,
 				To:   getInventoryItemDataStreamID,
 				CallSemantics: &cfg.CallSemanticsGroup{
-					TaskPool: &cfg.TaskPoolCallSemanticsConfig{
-						PoolName: "Inventory Priority Workers",
-					},
+					FunctionCall: &cfg.FunctionCallSemanticsConfig{},
 				},
 			},
 		},
