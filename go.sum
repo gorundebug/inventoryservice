@@ -27,8 +27,8 @@ github.com/gorundebug/inventory_service_api v0.2.13 h1:3gWqTZ0QfKmonVCt6l70EF5s/
 github.com/gorundebug/inventory_service_api v0.2.13/go.mod h1:1SeJqVDoQGRpJ/DDfl98g1cNyCpIS3BcenVzsex83KM=
 github.com/gorundebug/model v0.2.13 h1:3Yo6jvgKh9XtVpB0o6taoah3A2hJNPXD1Z7Qk4dEzzA=
 github.com/gorundebug/model v0.2.13/go.mod h1:IX8Udk3PsSv6WzbI0QYi8+TdYqo3NIuGMhqVg1W1hfk=
-github.com/gorundebug/servicelib v0.2.13 h1:s0/wfu721c6c7vMHQHi8Lgx5/yfMm3Gl6VC7wwPmBAQ=
-github.com/gorundebug/servicelib v0.2.13/go.mod h1:A6Kf5xjzzeGyJLtUJqnoQ0YC4xcIGPG6kB5nkZdCHfg=
+github.com/gorundebug/servicelib v0.2.14 h1:0oxi0HjQT40U82bctkYD+2zXxbhZ14rSHlFbes9/1Co=
+github.com/gorundebug/servicelib v0.2.14/go.mod h1:A6Kf5xjzzeGyJLtUJqnoQ0YC4xcIGPG6kB5nkZdCHfg=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 h1:5VipnvEpbqr2gA2VbM+nYVbkIF28c5ZQfqCBQ5g2xfk=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0/go.mod h1:Hyl3n6Twe1hvtd9XUXDec4pTvgMSEixRuQKPTMH2bNs=
 github.com/klauspost/compress v1.18.6 h1:2jupLlAwFm95+YDR+NwD2MEfFO9d4z4Prjl1XXDjuao=
