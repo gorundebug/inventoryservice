@@ -3,9 +3,9 @@ module github.com/gorundebug/inventoryservice
 go 1.25.4
 
 require (
-	github.com/gorundebug/inventory_service_api v0.2.24
-	github.com/gorundebug/model v0.2.24
-	github.com/gorundebug/servicelib v0.2.24
+	github.com/gorundebug/inventory_service_api v0.2.25
+	github.com/gorundebug/model v0.2.25
+	github.com/gorundebug/servicelib v0.2.25
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/sync v0.22.0
 	google.golang.org/grpc v1.83.2

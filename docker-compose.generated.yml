@@ -1,0 +1,26 @@
+services:
+  inventoryservice:
+    image: inventoryservice:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
+      args:
+        GOPROXY: ${GOPROXY:-direct}
+        GOSUMDB: ${GOSUMDB:-sum.golang.org}
+        RUNTIME_STRIP: ${RUNTIME_STRIP:-ON}
+        DEPENDENCY_GITHUB_RAW_URL: ${DEPENDENCY_GITHUB_RAW_URL:-https://github.com}
+        DEPENDENCY_APT_DEBIAN_URL: ${DEPENDENCY_APT_DEBIAN_URL:-}
+        DEPENDENCY_APT_DEBIAN_SECURITY_URL: ${DEPENDENCY_APT_DEBIAN_SECURITY_URL:-}
+      additional_contexts:
+        servicelib-source: "${GOSERVICELIB_SOURCE_CONTEXT:-https://github.com/gorundebug/servicelib.git#v0.2.25}"
+        module-inventory_service_api-source: "${INVENTORY_SERVICE_API_SOURCE_CONTEXT:-https://github.com/gorundebug/inventory_service_api.git#v0.2.14}"
+        module-model-source: "${MODEL_SOURCE_CONTEXT:-https://github.com/gorundebug/model.git#v0.2.14}"
+    environment:
+      - DEBUG=${DEBUG:-0}
+    ports:
+      - "9092:9092"
+      - "9202:9202"
+      - "2345:2345"
