@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gorundebug/model/pkg/types"
+	"github.com/gorundebug/model_go/pkg/types"
 	"github.com/gorundebug/servicelib/runtime"
 	"github.com/stretchr/testify/assert"
 )

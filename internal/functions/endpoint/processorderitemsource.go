@@ -9,7 +9,7 @@ import (
 	"github.com/gorundebug/servicelib/runtime/environment"
 
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi/processorderitem"
-	"github.com/gorundebug/model/pkg/types"
+	"github.com/gorundebug/model_go/pkg/types"
 )
 
 // ProcessOrderItemSourceType is the typed handler function for the ProcessOrderItemSource gRPC endpoint.

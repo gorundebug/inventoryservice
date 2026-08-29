@@ -28,8 +28,8 @@ import (
 	"github.com/gorundebug/inventoryservice/internal/config"
 	"github.com/gorundebug/inventoryservice/internal/functions/endpoint"
 	"github.com/gorundebug/inventoryservice/internal/functions/inventoryItem"
-	"github.com/gorundebug/model/pkg/serdes"
-	"github.com/gorundebug/model/pkg/types"
+	"github.com/gorundebug/model_go/pkg/serdes"
+	"github.com/gorundebug/model_go/pkg/types"
 )
 
 type serviceMakers struct {
