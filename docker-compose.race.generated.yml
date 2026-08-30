@@ -1,0 +1,6 @@
+services:
+  inventoryservice:
+    image: inventoryservice:race
+    restart: "no"
+    build:
+      target: race
