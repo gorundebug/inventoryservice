@@ -232,48 +232,6 @@ func (s *Service) initFunctions(ctx context.Context, cfg *config.Config, env run
 	return nil
 }
 
-// buildWorkflowGraph constructs a fresh graph without creating process-owned
-// servers, clients, exporters, watchers or OS-backed executors.
-func (s *Service) buildWorkflowGraph(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
-	if err := s.initMakers(ctx); err != nil {
-		return fmt.Errorf("init Workflow makers failed: %w", err)
-	}
-	if err := s.customMakersInit(ctx); err != nil {
-		return fmt.Errorf("custom Workflow makers failed: %w", err)
-	}
-	if err := s.initWorkflowFunctions(ctx, cfg, env); err != nil {
-		return fmt.Errorf("init Workflow functions failed: %w", err)
-	}
-	if err := s.customFunctionsInit(ctx); err != nil {
-		return fmt.Errorf("custom Workflow functions failed: %w", err)
-	}
-	if err := s.initStreams(ctx, cfg, env); err != nil {
-		return fmt.Errorf("init Workflow streams failed: %w", err)
-	}
-	return nil
-}
-
-// Workflow function makers run in a stable generated order. The ordinary
-// service keeps initializer-group goroutines; a Temporal Workflow must not use
-// process goroutines during replayable graph construction.
-func (s *Service) initWorkflowFunctions(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
-	if s.makers.inventoryItemGetInventoryItemDataMaker != nil {
-		value, err := s.makers.inventoryItemGetInventoryItemDataMaker(ctx, &cfg.Streams.GetInventoryItemData, env)
-		if err != nil {
-			return err
-		}
-		s.functions.inventoryItemGetInventoryItemData = value
-	}
-	if s.makers.endpointProcessOrderItemSourceMaker != nil {
-		value, err := s.makers.endpointProcessOrderItemSourceMaker(ctx, &cfg.Endpoints.ProcessOrderItem, env)
-		if err != nil {
-			return err
-		}
-		s.functions.endpointProcessOrderItemSource = value
-	}
-	return nil
-}
-
 func (s *Service) ServiceInit() error {
 	return nil
 }
