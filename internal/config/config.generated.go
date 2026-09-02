@@ -342,7 +342,7 @@ func MakeConfig() *Config {
 
 			ProcessInventoryItem: cfg.InputStreamConfig{
 				ID:         processInventoryItemStreamID,
-				Name:       "Process Inventory Item ",
+				Name:       "Process Inventory Item",
 				Pipeline:   "inventoryItem",
 				IdService:  inventoryServiceServiceID,
 				IdSource:   mergeInventoryResultStreamID,
