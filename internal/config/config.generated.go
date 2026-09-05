@@ -401,8 +401,9 @@ func MakeConfig() *Config {
 				From: processInventoryItemStreamID,
 				To:   getInventoryItemDataStreamID,
 				CallSemantics: &cfg.CallSemanticsGroup{
-					TaskPool: &cfg.TaskPoolCallSemanticsConfig{
+					PriorityTaskPool: &cfg.PriorityTaskPoolCallSemanticsConfig{
 						PoolName: "Inventory Priority Workers",
+						Priority: 10,
 					},
 				},
 			},
