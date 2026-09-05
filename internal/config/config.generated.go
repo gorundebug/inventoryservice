@@ -394,17 +394,14 @@ func MakeConfig() *Config {
 				From: getInventoryItemDataStreamID,
 				To:   mergeInventoryResultStreamID,
 				CallSemantics: &cfg.CallSemanticsGroup{
-					ParallelCall: &cfg.ParallelCallSemanticsConfig{},
+					FunctionCall: &cfg.FunctionCallSemanticsConfig{},
 				},
 			},
 			ProcessInventoryItemToGetInventoryItemData: cfg.LinkConfig{
 				From: processInventoryItemStreamID,
 				To:   getInventoryItemDataStreamID,
 				CallSemantics: &cfg.CallSemanticsGroup{
-					PriorityTaskPool: &cfg.PriorityTaskPoolCallSemanticsConfig{
-						PoolName: "Inventory Priority Workers",
-						Priority: 10,
-					},
+					FunctionCall: &cfg.FunctionCallSemanticsConfig{},
 				},
 			},
 		},
