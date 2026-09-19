@@ -12,14 +12,25 @@ import (
 	"github.com/gorundebug/servicelib/transformation"
 )
 
-var _ transformation.ProcessFunction[*types.OrderItem, *types.OrderItemResult, *types.OrderItemResult] = (*GetInventoryItemData)(nil)
+var _ transformation.ProcessFunction[*types.OrderItem, *types.OrderItemResult, error] = (*GetInventoryItemData)(nil)
+
+type inventoryFailure struct {
+	orderID      string
+	itemID       string
+	sku          string
+	requestedQty int
+	availableQty int
+	unitPrice    float64
+}
+
+func (f *inventoryFailure) Error() string { return "inventory is out of stock" }
 
 // GetInventoryItemData
 type GetInventoryItemData struct {
 	stock map[string]*atomic.Int64 // immutable SKU index; atomic quantity per SKU
 }
 
-func (f *GetInventoryItemData) Process(ctx context.Context, _ runtime.Stream, value *types.OrderItem, out runtime.Collect[*types.OrderItemResult], rout runtime.Collect[*types.OrderItemResult]) {
+func (f *GetInventoryItemData) Process(ctx context.Context, _ runtime.Stream, value *types.OrderItem, out runtime.Collect[*types.OrderItemResult], rout runtime.Collect[error]) {
 	stock, ok := f.stock[value.SKU]
 	if ok {
 		quantity := int64(value.Quantity)
@@ -43,15 +54,9 @@ func (f *GetInventoryItemData) Process(ctx context.Context, _ runtime.Stream, va
 	if ok {
 		available = stock.Load()
 	}
-	rout.Out(ctx, &types.OrderItemResult{
-		OrderID:      value.OrderID,
-		ItemID:       value.ItemID,
-		SKU:          value.SKU,
-		RequestedQty: value.Quantity,
-		AvailableQty: int(available),
-		Reserved:     false,
-		Status:       "OUT_OF_STOCK",
-		UnitPrice:    value.UnitPrice,
+	rout.Out(ctx, &inventoryFailure{
+		orderID: value.OrderID, itemID: value.ItemID, sku: value.SKU,
+		requestedQty: value.Quantity, availableQty: int(available), unitPrice: value.UnitPrice,
 	})
 }
 

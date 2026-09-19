@@ -15,56 +15,37 @@ import (
 	"time"
 
 	"github.com/gorundebug/servicelib/runtime"
-	runtimecfg "github.com/gorundebug/servicelib/runtime/config"
 	"github.com/gorundebug/servicelib/runtime/environment"
 	log "github.com/gorundebug/servicelib/runtime/environment/log"
 	runtimeserde "github.com/gorundebug/servicelib/runtime/serde"
-	"github.com/gorundebug/servicelib/transformation"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
 
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi"
 	"github.com/gorundebug/inventoryservice/internal/config"
-	"github.com/gorundebug/inventoryservice/internal/functions/endpoint"
-	"github.com/gorundebug/inventoryservice/internal/functions/inventoryItem"
 	"github.com/gorundebug/model_go/pkg/serdes"
 	"github.com/gorundebug/model_go/pkg/types"
 )
 
 type serviceMakers struct {
-	//stream function makers
-	inventoryItemGetInventoryItemDataMaker func(ctx context.Context, cfg *runtimecfg.ProcessStreamConfig, env environment.ServiceEnvironment) (*inventoryItem.GetInventoryItemData, error)
-	//data source function makers
-	endpointProcessOrderItemSourceMaker func(ctx context.Context, cfg *runtimecfg.GrpcEndpointConfig, env environment.ServiceEnvironment) (*endpoint.ProcessOrderItemSource, error)
-	//data sink function makers
+	inventoryItemPipelineMakers
 }
 
 type serviceFunctions struct {
-	//stream functions
-	inventoryItemGetInventoryItemData *inventoryItem.GetInventoryItemData
-	//data source functions
-	endpointProcessOrderItemSource *endpoint.ProcessOrderItemSource
-	//data sink functions
+	inventoryItemPipelineFunctions
 }
 
 type serviceStreams struct {
-	//streams
-	processInventoryItem  runtime.TypedInputStream[*types.OrderItem, *types.OrderItemResult, error]
-	getInventoryItemData  runtime.TypedProcessConsumedStream[*types.OrderItem, *types.OrderItemResult, *types.OrderItemResult]
-	getInventoryItemError runtime.TypedConsumedStream[*types.OrderItemResult]
-	mergeInventoryResult  runtime.TypedConsumedStream[*types.OrderItemResult]
+	inventoryItemPipelineStreams
 }
 
 type serviceHandlers struct {
-	//data source handlers
-	endpointProcessOrderItemSource endpoint.ProcessOrderItemSourceType
+	inventoryItemPipelineHandlers
 }
 
 type serviceDataConnectors struct {
-	//data sources
-	processOrderItem runtime.Consumer[*types.OrderItem]
-	//data sinks
+	inventoryItemPipelineDataConnectors
 }
 
 type Service struct {
@@ -139,16 +120,7 @@ func (s *Service) initMakers(ctx context.Context) error {
 			return grpc.NewServer(opts...), nil
 		}
 	}
-	if s.makers.inventoryItemGetInventoryItemDataMaker == nil {
-		s.makers.inventoryItemGetInventoryItemDataMaker = func(ctx context.Context, cfg *runtimecfg.ProcessStreamConfig, env environment.ServiceEnvironment) (*inventoryItem.GetInventoryItemData, error) {
-			return inventoryItem.MakeGetInventoryItemData(ctx, env, cfg)
-		}
-	}
-	if s.makers.endpointProcessOrderItemSourceMaker == nil {
-		s.makers.endpointProcessOrderItemSourceMaker = func(ctx context.Context, cfg *runtimecfg.GrpcEndpointConfig, env environment.ServiceEnvironment) (*endpoint.ProcessOrderItemSource, error) {
-			return endpoint.MakeProcessOrderItemSource(ctx, env, cfg)
-		}
-	}
+	s.initInventoryItemMakers()
 
 	return nil
 }
@@ -189,20 +161,16 @@ func (s *Service) buildRuntime(ctx context.Context) error {
 
 func (s *Service) initStreams(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
 	var err error
-	if s.streams.processInventoryItem, err = transformation.Input[*types.OrderItem, *types.OrderItemResult, error](&cfg.Streams.ProcessInventoryItem, env); err != nil {
+	if err = s.initInventoryItemStreams(ctx, cfg, env); err != nil {
 		return err
 	}
-	if s.streams.getInventoryItemData, err = transformation.Process[*types.OrderItem, *types.OrderItemResult, *types.OrderItemResult](&cfg.Streams.GetInventoryItemData, s.streams.processInventoryItem, s.functions.inventoryItemGetInventoryItemData); err != nil {
+	if err = s.bindInventoryItemStreams(); err != nil {
 		return err
 	}
-	s.streams.getInventoryItemError = s.streams.getInventoryItemData.GetErrorStream()
-	if s.streams.mergeInventoryResult, err = transformation.Merge[*types.OrderItemResult](&cfg.Streams.MergeInventoryResult, s.streams.getInventoryItemData, s.streams.getInventoryItemError); err != nil {
+	if err = s.initInventoryItemEndpoints(); err != nil {
 		return err
 	}
-	if err = s.streams.processInventoryItem.SetSource(s.streams.mergeInventoryResult); err != nil {
-		return err
-	}
-	if s.dataConnectors.processOrderItem, s.handlers.endpointProcessOrderItemSource, err = endpoint.MakeEndpointConsumerProcessOrderItemSource(s.streams.processInventoryItem, s.functions.endpointProcessOrderItemSource); err != nil {
+	if err = s.postInitInventoryItemStreams(); err != nil {
 		return err
 	}
 	_ = err
@@ -210,22 +178,13 @@ func (s *Service) initStreams(ctx context.Context, cfg *config.Config, env runti
 	return nil
 }
 
+type pipelineMakerTaskGroup interface {
+	Go(func() error)
+}
+
 func (s *Service) initFunctions(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
 	eg, egCtx := errgroup.WithContext(ctx)
-	if s.makers.inventoryItemGetInventoryItemDataMaker != nil {
-		eg.Go(func() error {
-			var err error
-			s.functions.inventoryItemGetInventoryItemData, err = s.makers.inventoryItemGetInventoryItemDataMaker(egCtx, &cfg.Streams.GetInventoryItemData, env)
-			return err
-		})
-	}
-	if s.makers.endpointProcessOrderItemSourceMaker != nil {
-		eg.Go(func() error {
-			var err error
-			s.functions.endpointProcessOrderItemSource, err = s.makers.endpointProcessOrderItemSourceMaker(egCtx, &cfg.Endpoints.ProcessOrderItem, env)
-			return err
-		})
-	}
+	s.scheduleInventoryItemFunctions(eg, egCtx, cfg, env)
 	if err := eg.Wait(); err != nil {
 		return err
 	}

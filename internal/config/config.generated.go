@@ -20,6 +20,7 @@ const (
 // Stream IDs
 const (
 	getInventoryItemDataStreamID = iota + 1
+	mapInventoryItemErrorStreamID
 	mergeInventoryResultStreamID
 	processInventoryItemStreamID
 )
@@ -40,9 +41,10 @@ type Config struct {
 	} `yaml:"services" mapstructure:"services"`
 
 	Streams struct {
-		GetInventoryItemData cfg.ProcessStreamConfig `yaml:"getInventoryItemData" mapstructure:"getInventoryItemData"`
-		MergeInventoryResult cfg.MergeStreamConfig   `yaml:"mergeInventoryResult" mapstructure:"mergeInventoryResult"`
-		ProcessInventoryItem cfg.InputStreamConfig   `yaml:"processInventoryItem" mapstructure:"processInventoryItem"`
+		GetInventoryItemData  cfg.ProcessStreamConfig `yaml:"getInventoryItemData" mapstructure:"getInventoryItemData"`
+		MapInventoryItemError cfg.MapStreamConfig     `yaml:"mapInventoryItemError" mapstructure:"mapInventoryItemError"`
+		MergeInventoryResult  cfg.MergeStreamConfig   `yaml:"mergeInventoryResult" mapstructure:"mergeInventoryResult"`
+		ProcessInventoryItem  cfg.InputStreamConfig   `yaml:"processInventoryItem" mapstructure:"processInventoryItem"`
 	} `yaml:"streams" mapstructure:"streams"`
 
 	DataConnectors struct {
@@ -69,8 +71,9 @@ type Config struct {
 	} `yaml:"modules" mapstructure:"modules"`
 
 	Types struct {
-		OrderItem       cfg.TypeConfig `yaml:"orderItem" mapstructure:"orderItem"`
-		OrderItemResult cfg.TypeConfig `yaml:"orderItemResult" mapstructure:"orderItemResult"`
+		InventoryFailure cfg.TypeConfig `yaml:"inventoryFailure" mapstructure:"inventoryFailure"`
+		OrderItem        cfg.TypeConfig `yaml:"orderItem" mapstructure:"orderItem"`
+		OrderItemResult  cfg.TypeConfig `yaml:"orderItemResult" mapstructure:"orderItemResult"`
 	} `yaml:"types" mapstructure:"types"`
 
 	Custom     CustomConfig           `yaml:",inline" mapstructure:",squash"`
@@ -90,6 +93,7 @@ func (c *Config) GetServices() []*cfg.ServiceConfig {
 func (c *Config) GetStreams() []cfg.StreamConfig {
 	return []cfg.StreamConfig{
 		&c.Streams.GetInventoryItemData,
+		&c.Streams.MapInventoryItemError,
 		&c.Streams.MergeInventoryResult,
 		&c.Streams.ProcessInventoryItem,
 	}
@@ -130,6 +134,7 @@ func (c *Config) GetModules() []*cfg.ModuleConfig {
 
 func (c *Config) GetTypes() []*cfg.TypeConfig {
 	return []*cfg.TypeConfig{
+		&c.Types.InventoryFailure,
 		&c.Types.OrderItem,
 		&c.Types.OrderItemResult,
 	}
@@ -313,9 +318,10 @@ func MakeConfig() *Config {
 			},
 		},
 		Streams: struct {
-			GetInventoryItemData cfg.ProcessStreamConfig `yaml:"getInventoryItemData" mapstructure:"getInventoryItemData"`
-			MergeInventoryResult cfg.MergeStreamConfig   `yaml:"mergeInventoryResult" mapstructure:"mergeInventoryResult"`
-			ProcessInventoryItem cfg.InputStreamConfig   `yaml:"processInventoryItem" mapstructure:"processInventoryItem"`
+			GetInventoryItemData  cfg.ProcessStreamConfig `yaml:"getInventoryItemData" mapstructure:"getInventoryItemData"`
+			MapInventoryItemError cfg.MapStreamConfig     `yaml:"mapInventoryItemError" mapstructure:"mapInventoryItemError"`
+			MergeInventoryResult  cfg.MergeStreamConfig   `yaml:"mergeInventoryResult" mapstructure:"mergeInventoryResult"`
+			ProcessInventoryItem  cfg.InputStreamConfig   `yaml:"processInventoryItem" mapstructure:"processInventoryItem"`
 		}{
 			GetInventoryItemData: cfg.ProcessStreamConfig{
 				ID:                  getInventoryItemDataStreamID,
@@ -330,12 +336,25 @@ func MakeConfig() *Config {
 				FunctionDescription: "Reserve the requested quantity without allowing concurrent orders to overdraw stock.\nOn success, return CONFIRMED with the requested quantity available. Otherwise return OUT_OF_STOCK with the current available quantity.\nPreserve the order and item identity, requested quantity, and unit price.\nThe example starts with SKU-001: 100, SKU-002: 50, and SKU-003: 25.\n",
 			},
 
+			MapInventoryItemError: cfg.MapStreamConfig{
+				ID:                  mapInventoryItemErrorStreamID,
+				Name:                "Map Inventory Item Error",
+				Pipeline:            "inventoryItem",
+				IdService:           inventoryServiceServiceID,
+				XPos:                733,
+				YPos:                -263,
+				ValueType:           "OrderItemResult",
+				FunctionPackage:     "inventoryItem",
+				FunctionName:        "GetInventoryItemError",
+				FunctionDescription: "When inventory processing fails, return an OUT_OF_STOCK result with no available quantity.\nPreserve the order and item identity and requested quantity, and record the failure.\n",
+			},
+
 			MergeInventoryResult: cfg.MergeStreamConfig{
 				ID:        mergeInventoryResultStreamID,
 				Name:      "Merge Inventory Result",
 				Pipeline:  "inventoryItem",
 				IdService: inventoryServiceServiceID,
-				IdSources: []int{getInventoryItemDataStreamID},
+				IdSources: []int{getInventoryItemDataStreamID, mapInventoryItemErrorStreamID},
 				XPos:      542,
 				YPos:      33,
 			},
@@ -424,9 +443,15 @@ func MakeConfig() *Config {
 			},
 		},
 		Types: struct {
-			OrderItem       cfg.TypeConfig `yaml:"orderItem" mapstructure:"orderItem"`
-			OrderItemResult cfg.TypeConfig `yaml:"orderItemResult" mapstructure:"orderItemResult"`
+			InventoryFailure cfg.TypeConfig `yaml:"inventoryFailure" mapstructure:"inventoryFailure"`
+			OrderItem        cfg.TypeConfig `yaml:"orderItem" mapstructure:"orderItem"`
+			OrderItemResult  cfg.TypeConfig `yaml:"orderItemResult" mapstructure:"orderItemResult"`
 		}{
+			InventoryFailure: cfg.TypeConfig{
+				Name: "InventoryFailure",
+				Type: api.DataTypeError,
+			},
+
 			OrderItem: cfg.TypeConfig{
 				Name:             "OrderItem",
 				Type:             api.DataTypeStruct,
