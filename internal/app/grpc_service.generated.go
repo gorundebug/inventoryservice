@@ -3,16 +3,17 @@ package app
 
 import (
 	"context"
-
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi"
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi/processorderitem"
 )
 
-type GrpcService struct {
+var _ inventoryserviceapi.InventoryServiceApiServer = (*InventoryServiceApiGrpcService)(nil)
+
+type InventoryServiceApiGrpcService struct {
 	inventoryserviceapi.UnimplementedInventoryServiceApiServer
 	service *Service
 }
 
-func (s *GrpcService) ProcessOrderItem(ctx context.Context, request *processorderitem.ProcessOrderItemRequest) (*processorderitem.ProcessOrderItemResponse, error) {
-	return s.service.handlers.endpointProcessOrderItemSource(ctx, request)
+func (s *InventoryServiceApiGrpcService) ProcessOrderItem(ctx context.Context, request *processorderitem.ProcessOrderItemRequest) (*processorderitem.ProcessOrderItemResponse, error) {
+	return s.service.endpoints.handlers.processOrderItem(ctx, request)
 }

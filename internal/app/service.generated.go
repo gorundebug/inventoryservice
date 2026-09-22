@@ -3,329 +3,97 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net"
-	"net/http"
-	"os"
-	"os/signal"
-	"reflect"
-	"sync"
-	"syscall"
-	"time"
-
 	"github.com/gorundebug/servicelib/runtime"
 	"github.com/gorundebug/servicelib/runtime/environment"
 	log "github.com/gorundebug/servicelib/runtime/environment/log"
-	runtimeserde "github.com/gorundebug/servicelib/runtime/serde"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/stats"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi"
-	"github.com/gorundebug/inventoryservice/internal/config"
-	"github.com/gorundebug/model_go/pkg/serdes"
-	"github.com/gorundebug/model_go/pkg/types"
+	config "github.com/gorundebug/inventoryservice/internal/config"
 )
-
-type serviceMakers struct {
-	inventoryItemPipelineMakers
-}
-
-type serviceFunctions struct {
-	inventoryItemPipelineFunctions
-}
-
-type serviceStreams struct {
-	inventoryItemPipelineStreams
-}
-
-type serviceHandlers struct {
-	inventoryItemPipelineHandlers
-}
-
-type serviceDataConnectors struct {
-	inventoryItemPipelineDataConnectors
-}
 
 type Service struct {
 	runtime.ServiceApp
-	makers          serviceMakers
-	functions       serviceFunctions
-	streams         serviceStreams
-	handlers        serviceHandlers
-	dataConnectors  serviceDataConnectors
-	grpcServer      *grpc.Server
-	grpcServerMaker func(context.Context, runtime.RuntimeEnvironment) (*grpc.Server, error)
-	httpServer      *http.Server
-	httpServerMaker func(context.Context, runtime.RuntimeEnvironment) (*http.Server, error)
-	httpMux         *http.ServeMux
-	httpMuxMaker    func(context.Context, runtime.RuntimeEnvironment) (*http.ServeMux, error)
-	httpServerDone  chan struct{}
+	makers    serviceMakers
+	functions serviceFunctions
+	streams   serviceStreams
+	endpoints serviceEndpoints
+	clients   serviceClients
+	servers   serviceServers
 }
 
-func (s *Service) GetSerde(valueType reflect.Type) (runtimeserde.Serializer, error) {
-	if serde, err := s.getCustomSerde(valueType); err != nil {
-		return nil, err
-	} else if serde != nil {
-		return serde, nil
-	}
-	switch valueType {
-	case runtimeserde.GetSerdeType[types.OrderItem](), runtimeserde.GetSerdeType[*types.OrderItem]():
-		{
-			var serde runtimeserde.Serde[*types.OrderItem] = &serdes.OrderItemSerde{}
-			return serde, nil
-		}
-
-	case runtimeserde.GetSerdeType[types.OrderItemResult](), runtimeserde.GetSerdeType[*types.OrderItemResult]():
-		{
-			var serde runtimeserde.Serde[*types.OrderItemResult] = &serdes.OrderItemResultSerde{}
-			return serde, nil
-		}
-
-	}
-	return nil, nil
-}
-
-func (s *Service) RegisterHTTPHandler(path string, handler http.Handler) {
-	if s.httpMux != nil {
-		s.httpMux.Handle(path, s.httpHandlerMiddleware(path, handler))
-	} else {
-		s.ServiceApp.RegisterHTTPHandler(path, s.httpHandlerMiddleware(path, handler))
-	}
-}
-
-func (s *Service) Config() *config.Config {
-	return s.ServiceApp.GetConfig().(*config.Config)
-}
-
-func (s *Service) initMakers(ctx context.Context) error {
-	if s.grpcServerMaker == nil {
-		s.grpcServerMaker = func(_ context.Context, env runtime.RuntimeEnvironment) (*grpc.Server, error) {
-			var opts []grpc.ServerOption
-			var statsHandlers []stats.Handler
-			if me := env.MetricsEngine(); me != nil {
-				if h := me.GRPCStatsHandler(); h != nil {
-					statsHandlers = append(statsHandlers, h)
-				}
-			}
-			if te := env.TracingEngine(); te != nil {
-				if h := te.GRPCStatsHandler(); h != nil {
-					statsHandlers = append(statsHandlers, h)
-				}
-			}
-			if h := runtime.CombineGRPCStatsHandlers(statsHandlers...); h != nil {
-				opts = append(opts, grpc.StatsHandler(h))
-			}
-			return grpc.NewServer(opts...), nil
-		}
-	}
-	s.initInventoryItemMakers()
-
-	return nil
-}
+func (s *Service) Config() *config.Config { return s.ServiceApp.GetConfig().(*config.Config) }
 
 func (s *Service) buildRuntime(ctx context.Context) error {
 	cfg := s.Config()
-
-	if err := s.initMakers(ctx); err != nil {
+	if err := s.makers.initMakers(ctx); err != nil {
 		return fmt.Errorf("init makers failed: %w", err)
 	}
-
 	if err := s.customMakersInit(ctx); err != nil {
 		return fmt.Errorf("custom init makers failed: %w", err)
 	}
-
-	var err error
-
-	if s.httpMuxMaker != nil {
-		if s.httpMux, err = s.httpMuxMaker(ctx, s); err != nil {
+	if err := initConnectors(cfg, s); err != nil {
+		return err
+	}
+	if s.makers.httpMuxMaker != nil {
+		mux, err := s.makers.httpMuxMaker(ctx, s)
+		if err != nil {
 			return fmt.Errorf("create http mux failed: %w", err)
 		}
+		s.servers.httpMux = mux
 	}
-
-	if err := s.initFunctions(ctx, cfg, s); err != nil {
+	if err := s.clients.initClients(ctx, cfg, s, &s.makers); err != nil {
+		return err
+	}
+	if err := s.functions.initFunctions(ctx, s, &s.makers); err != nil {
 		return fmt.Errorf("init functions failed: %w", err)
 	}
-
 	if err := s.customFunctionsInit(ctx); err != nil {
 		return fmt.Errorf("custom functions init failed: %w", err)
 	}
+	return s.buildGraph(ctx, cfg, s)
+}
 
-	if err := s.initStreams(ctx, cfg, s); err != nil {
+func (s *Service) buildGraph(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
+	if err := s.streams.initStreams(ctx, cfg, env, &s.functions); err != nil {
 		return fmt.Errorf("init streams failed: %w", err)
 	}
-
-	return nil
-}
-
-func (s *Service) initStreams(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
-	var err error
-	if err = s.initInventoryItemStreams(ctx, cfg, env); err != nil {
+	if err := s.streams.build(); err != nil {
 		return err
 	}
-	if err = s.bindInventoryItemStreams(); err != nil {
+	if err := s.endpoints.initEndpoints(s); err != nil {
 		return err
 	}
-	if err = s.initInventoryItemEndpoints(); err != nil {
-		return err
-	}
-	if err = s.postInitInventoryItemStreams(); err != nil {
-		return err
-	}
-	_ = err
-	_ = cfg
-	return nil
+	return s.streams.finish()
 }
-
-type pipelineMakerTaskGroup interface {
-	Go(func() error)
-}
-
-func (s *Service) initFunctions(ctx context.Context, cfg *config.Config, env runtime.RuntimeEnvironment) error {
-	eg, egCtx := errgroup.WithContext(ctx)
-	s.scheduleInventoryItemFunctions(eg, egCtx, cfg, env)
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Service) ServiceInit() error {
-	return nil
-}
-
 func (s *Service) StartService(ctx context.Context) error {
-
 	if err := s.buildRuntime(ctx); err != nil {
 		return fmt.Errorf("build runtime failed: %w", err)
 	}
-
 	if err := s.start(ctx); err != nil {
 		return fmt.Errorf("service start failed: %w", err)
 	}
-
 	if err := s.ServiceApp.Start(ctx); err != nil {
 		return fmt.Errorf("service app start failed: %w", err)
 	}
-
-	var err error
-
-	if s.grpcServer, err = s.grpcServerMaker(ctx, s); err != nil {
-		return fmt.Errorf("create gRPC server failed: %w", err)
-	}
-
-	if s.httpMux != nil {
-		if s.httpServerMaker != nil {
-			if s.httpServer, err = s.httpServerMaker(ctx, s); err != nil {
-				return fmt.Errorf("create http server failed: %w", err)
-			}
-		}
-	}
-	if s.httpServer != nil {
-		s.httpServerDone = make(chan struct{})
-		ln, err := net.Listen("tcp", s.httpServer.Addr)
-		if err != nil {
-			return fmt.Errorf("failed to listen http port: %v", err)
-		}
-		go func() {
-			s.Log().Info(ctx, "HTTP server listening", log.Any("addr", s.httpServer.Addr))
-			if err := s.httpServer.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				s.Log().Error(ctx, "HTTP server stopped unexpectedly", log.Err(err))
-			}
-			close(s.httpServerDone)
-		}()
-	}
-	var inventoryServiceGrpcListener net.Listener
-	svcCfg := s.ServiceConfig()
-	inventoryServiceGrpcListener, err = net.Listen("tcp", fmt.Sprintf("%s:%d", svcCfg.GrpcHost, svcCfg.GrpcPort))
-	if err != nil {
-		return fmt.Errorf("failed to listen gRPC port: %v", err)
-	}
-	grpcService := &GrpcService{
-		service: s,
-	}
-	inventoryserviceapi.RegisterInventoryServiceApiServer(s.grpcServer, grpcService)
-	go func() {
-		s.Log().Info(ctx, "gRPC server listening", log.Any("addr", inventoryServiceGrpcListener.Addr()))
-		if err := s.grpcServer.Serve(inventoryServiceGrpcListener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			s.Log().Error(ctx, "gRPC server stopped unexpectedly", log.Err(err))
-		}
-	}()
-
-	return nil
+	return s.servers.start(ctx, s)
 }
 
 func (s *Service) StopService(ctx context.Context) {
-	svcCfg := s.ServiceConfig()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(svcCfg.ShutdownTimeout)*time.Millisecond)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.ServiceConfig().ShutdownTimeout)*time.Millisecond)
 	defer cancel()
-
-	// First stop transport admission and let requests already accepted by the
-	// HTTP/gRPC servers finish while the graph runtime and outbound clients
-	// are still available to their handlers.
-	wg := sync.WaitGroup{}
-	admissionDone := make(chan struct{})
-	if s.httpServer != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := s.httpServer.Shutdown(timeoutCtx); err != nil {
-				s.Log().Warn(timeoutCtx, "HTTP server shutdown", log.Err(err))
-			}
-			<-s.httpServerDone
-		}()
-	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		s.grpcServer.GracefulStop()
-	}()
-	go func() {
-		wg.Wait()
-		close(admissionDone)
-	}()
-	select {
-	case <-admissionDone:
-	case <-timeoutCtx.Done():
-		s.Log().Warn(timeoutCtx, "transport drain timed out", log.Err(timeoutCtx.Err()))
-		// GracefulStop has no context-aware overload. ForceStop is the
-		// documented bounded fallback after the shared shutdown deadline.
-		s.grpcServer.Stop()
-	}
-
-	// Only after inbound handlers have drained may graph resources, pools and
-	// sinks stop. All phases share the same absolute shutdown deadline.
+	s.servers.stop(timeoutCtx, s)
 	runtimeDone := make(chan struct{})
-	go func() {
-		defer close(runtimeDone)
-		s.ServiceApp.Stop(timeoutCtx)
-	}()
+	go func() { defer close(runtimeDone); s.ServiceApp.Stop(timeoutCtx) }()
 	select {
 	case <-runtimeDone:
 	case <-timeoutCtx.Done():
 		s.Log().Warn(timeoutCtx, "graph runtime stop timed out", log.Err(timeoutCtx.Err()))
 	}
-
-	// Outbound clients and user-owned resources are last: accepted handlers
-	// and graph shutdown callbacks may still need them in earlier phases.
-	cleanupWg := sync.WaitGroup{}
-
-	cleanupWg.Add(1)
-	go func() {
-		defer cleanupWg.Done()
-		s.stop(timeoutCtx)
-	}()
-	cleanupDone := make(chan struct{})
-	go func() {
-		cleanupWg.Wait()
-		close(cleanupDone)
-	}()
-	select {
-	case <-cleanupDone:
-	case <-timeoutCtx.Done():
-		s.Log().Warn(timeoutCtx, "service cleanup timed out", log.Err(timeoutCtx.Err()))
-	}
+	s.clients.close(timeoutCtx, s)
 }
 
 func Start(ctx context.Context,

@@ -5,7 +5,7 @@ import (
 
 	datasourcegrpc "github.com/gorundebug/servicelib/datasource/grpc"
 	"github.com/gorundebug/servicelib/runtime"
-	runtimecfg "github.com/gorundebug/servicelib/runtime/config"
+
 	"github.com/gorundebug/servicelib/runtime/environment"
 
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi/processorderitem"
@@ -68,6 +68,6 @@ func (ep *ProcessOrderItemSource) EndRequest(_ context.Context, _ datasourcegrpc
 }
 
 // MakeProcessOrderItemSource implements the handler for the ProcessOrderItemSource gRPC source endpoint.
-func MakeProcessOrderItemSource(ctx context.Context, env environment.ServiceEnvironment, cfg *runtimecfg.GrpcEndpointConfig) (*ProcessOrderItemSource, error) {
+func MakeProcessOrderItemSource(ctx context.Context, env environment.ServiceEnvironment) (*ProcessOrderItemSource, error) {
 	return &ProcessOrderItemSource{}, nil
 }

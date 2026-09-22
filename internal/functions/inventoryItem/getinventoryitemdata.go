@@ -7,7 +7,7 @@ import (
 	"github.com/gorundebug/model_go/pkg/types"
 
 	"github.com/gorundebug/servicelib/runtime"
-	runtimecfg "github.com/gorundebug/servicelib/runtime/config"
+
 	"github.com/gorundebug/servicelib/runtime/environment"
 	"github.com/gorundebug/servicelib/transformation"
 )
@@ -61,7 +61,7 @@ func (f *GetInventoryItemData) Process(ctx context.Context, _ runtime.Stream, va
 }
 
 // MakeGetInventoryItemData is instantiated once at application startup via its maker function.
-func MakeGetInventoryItemData(ctx context.Context, env environment.ServiceEnvironment, cfg *runtimecfg.ProcessStreamConfig) (*GetInventoryItemData, error) {
+func MakeGetInventoryItemData(ctx context.Context, env environment.ServiceEnvironment) (*GetInventoryItemData, error) {
 	return &GetInventoryItemData{
 		stock: map[string]*atomic.Int64{
 			"SKU-001": atomicInt64(100),
