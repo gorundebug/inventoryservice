@@ -57,11 +57,11 @@ services:
         kubernetesWorkloadType: Deployment
         links:
             link1:
-                callSemantics: ParallelCall
+                callSemantics: FunctionCall
                 from: getInventoryItemData
                 to: mergeInventoryResult
             link2:
-                callSemantics: PriorityTaskPool
+                callSemantics: FunctionCall
                 from: processInventoryItem
                 poolName: Inventory Priority Workers
                 priority: 10
@@ -122,16 +122,16 @@ services:
         startupHandler: health/startup
         statusHandler: status
 settings:
-    moduleVersion: v0.2.133
+    moduleVersion: v0.2.134
     name: Example
     repoPath: github.com/gorundebug/goexample
 types:
     inventoryFailure:
-        description: Native inventory operation error converted by GetInventoryItemError.
+        definitionFormat: Native
+        description: Inventory shortage data passed to GetInventoryItemError. Preserves the original order item and available quantity without throwing an exception.
         name: InventoryFailure
         publicType: false
-        type: error
-        useAlias: false
+        type: struct
     orderItem:
         definitionFormat: Native
         description: 'A single line item within an order. Fields: OrderID string, ItemID string, SKU string, Quantity int.'

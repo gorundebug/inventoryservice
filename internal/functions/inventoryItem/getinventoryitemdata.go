@@ -2,6 +2,7 @@ package inventoryItem
 
 import (
 	"context"
+	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
 	"sync/atomic"
 
 	"github.com/gorundebug/model_go/pkg/types"
@@ -12,25 +13,13 @@ import (
 	"github.com/gorundebug/servicelib/transformation"
 )
 
-var _ transformation.ProcessFunction[*types.OrderItem, *types.OrderItemResult, error] = (*GetInventoryItemData)(nil)
+var _ transformation.ProcessFunction[*types.OrderItem, *types.OrderItemResult, *inventorytypes.InventoryFailure] = (*GetInventoryItemData)(nil)
 
-type inventoryFailure struct {
-	orderID      string
-	itemID       string
-	sku          string
-	requestedQty int
-	availableQty int
-	unitPrice    float64
-}
-
-func (f *inventoryFailure) Error() string { return "inventory is out of stock" }
-
-// GetInventoryItemData
 type GetInventoryItemData struct {
-	stock map[string]*atomic.Int64 // immutable SKU index; atomic quantity per SKU
+	stock map[string]*atomic.Int64
 }
 
-func (f *GetInventoryItemData) Process(ctx context.Context, _ runtime.Stream, value *types.OrderItem, out runtime.Collect[*types.OrderItemResult], rout runtime.Collect[error]) {
+func (f *GetInventoryItemData) Process(ctx context.Context, _ runtime.Stream, value *types.OrderItem, out runtime.Collect[*types.OrderItemResult], rout runtime.Collect[*inventorytypes.InventoryFailure]) {
 	stock, ok := f.stock[value.SKU]
 	if ok {
 		quantity := int64(value.Quantity)
@@ -54,10 +43,7 @@ func (f *GetInventoryItemData) Process(ctx context.Context, _ runtime.Stream, va
 	if ok {
 		available = stock.Load()
 	}
-	rout.Out(ctx, &inventoryFailure{
-		orderID: value.OrderID, itemID: value.ItemID, sku: value.SKU,
-		requestedQty: value.Quantity, availableQty: int(available), unitPrice: value.UnitPrice,
-	})
+	rout.Out(ctx, &inventorytypes.InventoryFailure{Item: value, AvailableQty: int(available)})
 }
 
 // MakeGetInventoryItemData is instantiated once at application startup via its maker function.

@@ -2,6 +2,7 @@ package inventoryItem
 
 import (
 	"context"
+	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
 	"testing"
 
 	"github.com/gorundebug/model_go/pkg/types"
@@ -18,9 +19,11 @@ func TestGetInventoryItemError_Map(t *testing.T) {
 	out := runtime.CollectFunc[*types.OrderItemResult](func(_ context.Context, v *types.OrderItemResult) {
 		collected = append(collected, v)
 	})
-	value := &inventoryFailure{orderID: "order-1", itemID: "item-1", sku: "SKU-001", requestedQty: 3, availableQty: 1, unitPrice: 2.5}
+	value := &inventorytypes.InventoryFailure{Item: &types.OrderItem{OrderID: "order-1", ItemID: "item-1", SKU: "SKU-001", Quantity: 3, UnitPrice: 2.5}, AvailableQty: 1}
 	f.Map(context.Background(), nil, value, out)
-	assert.Len(t, collected, 1)
-	assert.Equal(t, "order-1", collected[0].OrderID)
-	assert.Equal(t, "OUT_OF_STOCK", collected[0].Status)
+	assert.Equal(t, []*types.OrderItemResult{{
+		OrderID: "order-1", ItemID: "item-1", SKU: "SKU-001",
+		RequestedQty: 3, AvailableQty: 1, UnitPrice: 2.5,
+		Reserved: false, Status: "OUT_OF_STOCK", Error: "inventory is out of stock",
+	}}, collected)
 }

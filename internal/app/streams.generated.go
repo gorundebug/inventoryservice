@@ -7,14 +7,15 @@ import (
 	"github.com/gorundebug/servicelib/transformation"
 
 	config "github.com/gorundebug/inventoryservice/internal/config"
+	types2 "github.com/gorundebug/inventoryservice/internal/types"
 	types "github.com/gorundebug/model_go/pkg/types"
 )
 
 type serviceStreams struct {
 	processInventoryItem  runtime.TypedInputStream[*types.OrderItem, *types.OrderItemResult, error]
-	getInventoryItemData  runtime.TypedProcessConsumedStream[*types.OrderItem, *types.OrderItemResult, error]
-	getInventoryItemError runtime.TypedConsumedStream[error]
-	mapInventoryItemError runtime.TypedTransformConsumedStream[error, *types.OrderItemResult]
+	getInventoryItemData  runtime.TypedProcessConsumedStream[*types.OrderItem, *types.OrderItemResult, *types2.InventoryFailure]
+	getInventoryItemError runtime.TypedConsumedStream[*types2.InventoryFailure]
+	mapInventoryItemError runtime.TypedTransformConsumedStream[*types2.InventoryFailure, *types.OrderItemResult]
 	mergeInventoryResult  runtime.TypedConsumedStream[*types.OrderItemResult]
 }
 
@@ -25,11 +26,11 @@ func (streams *serviceStreams) initStreams(ctx context.Context, cfg *config.Conf
 	if streams.processInventoryItem, err = transformation.Input[*types.OrderItem, *types.OrderItemResult, error](&cfg.Streams.ProcessInventoryItem, env); err != nil {
 		return err
 	}
-	if streams.getInventoryItemData, err = transformation.Process[*types.OrderItem, *types.OrderItemResult, error](&cfg.Streams.GetInventoryItemData, streams.processInventoryItem, functions.inventoryItemGetInventoryItemData); err != nil {
+	if streams.getInventoryItemData, err = transformation.Process[*types.OrderItem, *types.OrderItemResult, *types2.InventoryFailure](&cfg.Streams.GetInventoryItemData, streams.processInventoryItem, functions.inventoryItemGetInventoryItemData); err != nil {
 		return err
 	}
 	streams.getInventoryItemError = streams.getInventoryItemData.GetErrorStream()
-	if streams.mapInventoryItemError, err = transformation.Map[error, *types.OrderItemResult](&cfg.Streams.MapInventoryItemError, streams.getInventoryItemError, functions.inventoryItemGetInventoryItemError); err != nil {
+	if streams.mapInventoryItemError, err = transformation.Map[*types2.InventoryFailure, *types.OrderItemResult](&cfg.Streams.MapInventoryItemError, streams.getInventoryItemError, functions.inventoryItemGetInventoryItemError); err != nil {
 		return err
 	}
 	if streams.mergeInventoryResult, err = transformation.Merge[*types.OrderItemResult](&cfg.Streams.MergeInventoryResult, streams.getInventoryItemData, streams.mapInventoryItemError); err != nil {

@@ -2,6 +2,7 @@ package inventoryItem
 
 import (
 	"context"
+	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
 
 	"github.com/gorundebug/model_go/pkg/types"
 
@@ -11,23 +12,20 @@ import (
 	"github.com/gorundebug/servicelib/transformation"
 )
 
-var _ transformation.MapFunction[error, *types.OrderItemResult] = (*GetInventoryItemError)(nil)
+var _ transformation.MapFunction[*inventorytypes.InventoryFailure, *types.OrderItemResult] = (*GetInventoryItemError)(nil)
 
 // GetInventoryItemError
 type GetInventoryItemError struct{}
 
-func (f *GetInventoryItemError) Map(ctx context.Context, _ runtime.Stream, value error, out runtime.Collect[*types.OrderItemResult]) {
-	failure, ok := value.(*inventoryFailure)
-	if !ok {
-		out.Out(ctx, &types.OrderItemResult{Status: "PROCESSING_ERROR", Error: value.Error()})
-		return
-	}
+func (f *GetInventoryItemError) Map(ctx context.Context, _ runtime.Stream, value *inventorytypes.InventoryFailure, out runtime.Collect[*types.OrderItemResult]) {
+	item := value.Item
 	out.Out(ctx, &types.OrderItemResult{
-		OrderID: failure.orderID, ItemID: failure.itemID, SKU: failure.sku,
-		RequestedQty: failure.requestedQty, AvailableQty: failure.availableQty,
-		Reserved: false, Status: "OUT_OF_STOCK", UnitPrice: failure.unitPrice,
-		Error: failure.Error(),
+		OrderID: item.OrderID, ItemID: item.ItemID, SKU: item.SKU,
+		RequestedQty: item.Quantity, AvailableQty: value.AvailableQty,
+		Reserved: false, Status: "OUT_OF_STOCK", UnitPrice: item.UnitPrice,
+		Error: "inventory is out of stock",
 	})
+
 }
 
 // MakeGetInventoryItemError is instantiated once at application startup via its maker function.

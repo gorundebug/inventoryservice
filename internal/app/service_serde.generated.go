@@ -2,7 +2,9 @@
 package app
 
 import (
-	serdes "github.com/gorundebug/model_go/pkg/serdes"
+	serdes "github.com/gorundebug/inventoryservice/internal/serdes"
+	types2 "github.com/gorundebug/inventoryservice/internal/types"
+	serdes2 "github.com/gorundebug/model_go/pkg/serdes"
 	types "github.com/gorundebug/model_go/pkg/types"
 	runtimeserde "github.com/gorundebug/servicelib/runtime/serde"
 	"reflect"
@@ -15,15 +17,21 @@ func (s *Service) GetSerde(valueType reflect.Type) (runtimeserde.Serializer, err
 		return serde, nil
 	}
 	switch valueType {
+	case runtimeserde.GetSerdeType[types2.InventoryFailure](), runtimeserde.GetSerdeType[*types2.InventoryFailure]():
+		{
+			var serde runtimeserde.Serde[*types2.InventoryFailure] = &serdes.InventoryFailureSerde{}
+			return serde, nil
+		}
+
 	case runtimeserde.GetSerdeType[types.OrderItem](), runtimeserde.GetSerdeType[*types.OrderItem]():
 		{
-			var serde runtimeserde.Serde[*types.OrderItem] = &serdes.OrderItemSerde{}
+			var serde runtimeserde.Serde[*types.OrderItem] = &serdes2.OrderItemSerde{}
 			return serde, nil
 		}
 
 	case runtimeserde.GetSerdeType[types.OrderItemResult](), runtimeserde.GetSerdeType[*types.OrderItemResult]():
 		{
-			var serde runtimeserde.Serde[*types.OrderItemResult] = &serdes.OrderItemResultSerde{}
+			var serde runtimeserde.Serde[*types.OrderItemResult] = &serdes2.OrderItemResultSerde{}
 			return serde, nil
 		}
 

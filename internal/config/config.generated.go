@@ -413,17 +413,14 @@ func MakeConfig() *Config {
 				From: getInventoryItemDataStreamID,
 				To:   mergeInventoryResultStreamID,
 				CallSemantics: &cfg.CallSemanticsGroup{
-					ParallelCall: &cfg.ParallelCallSemanticsConfig{},
+					FunctionCall: &cfg.FunctionCallSemanticsConfig{},
 				},
 			},
 			ProcessInventoryItemToGetInventoryItemData: cfg.LinkConfig{
 				From: processInventoryItemStreamID,
 				To:   getInventoryItemDataStreamID,
 				CallSemantics: &cfg.CallSemanticsGroup{
-					PriorityTaskPool: &cfg.PriorityTaskPoolCallSemanticsConfig{
-						PoolName: "Inventory Priority Workers",
-						Priority: 10,
-					},
+					FunctionCall: &cfg.FunctionCallSemanticsConfig{},
 				},
 			},
 		},
@@ -451,8 +448,9 @@ func MakeConfig() *Config {
 			OrderItemResult  cfg.TypeConfig `yaml:"orderItemResult" mapstructure:"orderItemResult"`
 		}{
 			InventoryFailure: cfg.TypeConfig{
-				Name: "InventoryFailure",
-				Type: api.DataTypeError,
+				Name:             "InventoryFailure",
+				Type:             api.DataTypeStruct,
+				DefinitionFormat: api.TypeDefinitionFormatNative,
 			},
 
 			OrderItem: cfg.TypeConfig{
