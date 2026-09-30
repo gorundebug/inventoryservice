@@ -3,9 +3,10 @@ package app
 
 import (
 	"context"
+	"sync"
+
 	"github.com/gorundebug/servicelib/runtime"
 	log "github.com/gorundebug/servicelib/runtime/environment/log"
-	"sync"
 
 	config "github.com/gorundebug/inventoryservice/internal/config"
 )

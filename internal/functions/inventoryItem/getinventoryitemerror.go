@@ -2,14 +2,13 @@ package inventoryItem
 
 import (
 	"context"
-	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
-
-	"github.com/gorundebug/model_go/pkg/types"
 
 	"github.com/gorundebug/servicelib/runtime"
-
 	"github.com/gorundebug/servicelib/runtime/environment"
 	"github.com/gorundebug/servicelib/transformation"
+
+	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
+	"github.com/gorundebug/model_go/pkg/types"
 )
 
 var _ transformation.MapFunction[*inventorytypes.InventoryFailure, *types.OrderItemResult] = (*GetInventoryItemError)(nil)

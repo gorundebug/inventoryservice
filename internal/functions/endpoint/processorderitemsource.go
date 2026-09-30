@@ -5,7 +5,6 @@ import (
 
 	datasourcegrpc "github.com/gorundebug/servicelib/datasource/grpc"
 	"github.com/gorundebug/servicelib/runtime"
-
 	"github.com/gorundebug/servicelib/runtime/environment"
 
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi/processorderitem"

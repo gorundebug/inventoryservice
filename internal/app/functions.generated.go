@@ -3,8 +3,10 @@ package app
 
 import (
 	"context"
-	"github.com/gorundebug/servicelib/runtime"
+
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gorundebug/servicelib/runtime"
 
 	endpoint "github.com/gorundebug/inventoryservice/internal/functions/endpoint"
 	inventoryItem "github.com/gorundebug/inventoryservice/internal/functions/inventoryItem"

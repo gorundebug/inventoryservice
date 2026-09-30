@@ -2,12 +2,14 @@ package inventoryItem
 
 import (
 	"context"
-	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
 	"testing"
 
-	"github.com/gorundebug/model_go/pkg/types"
-	"github.com/gorundebug/servicelib/runtime"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gorundebug/servicelib/runtime"
+
+	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
+	"github.com/gorundebug/model_go/pkg/types"
 )
 
 // When inventory processing fails, return an OUT_OF_STOCK result with no available quantity. Preserve the order and

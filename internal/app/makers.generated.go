@@ -3,12 +3,13 @@ package app
 
 import (
 	"context"
-	"github.com/gorundebug/servicelib/runtime"
-	"github.com/gorundebug/servicelib/runtime/environment"
 	"net/http"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
+
+	"github.com/gorundebug/servicelib/runtime"
+	"github.com/gorundebug/servicelib/runtime/environment"
 
 	endpoint "github.com/gorundebug/inventoryservice/internal/functions/endpoint"
 	inventoryItem "github.com/gorundebug/inventoryservice/internal/functions/inventoryItem"

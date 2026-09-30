@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi"
 	"github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi/processorderitem"
 )

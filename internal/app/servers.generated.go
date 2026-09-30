@@ -5,13 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	log "github.com/gorundebug/servicelib/runtime/environment/log"
 	"net"
 	"net/http"
 	"sync"
 
-	inventoryserviceapi "github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi"
 	"google.golang.org/grpc"
+
+	log "github.com/gorundebug/servicelib/runtime/environment/log"
+
+	inventoryserviceapi "github.com/gorundebug/inventory_service_api/pkg/generated/proto/inventoryserviceapi"
 )
 
 type serviceServers struct {

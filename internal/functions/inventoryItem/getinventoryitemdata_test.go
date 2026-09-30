@@ -2,13 +2,15 @@ package inventoryItem
 
 import (
 	"context"
-	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
 	"sync/atomic"
 	"testing"
 
-	"github.com/gorundebug/model_go/pkg/types"
-	"github.com/gorundebug/servicelib/runtime"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gorundebug/servicelib/runtime"
+
+	inventorytypes "github.com/gorundebug/inventoryservice/internal/types"
+	"github.com/gorundebug/model_go/pkg/types"
 )
 
 // Inventory reservations must not overdraw stock. Accepted reservations return the requested quantity;
