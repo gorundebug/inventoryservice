@@ -313,7 +313,7 @@ func MakeConfig() *Config {
 				KubernetesWorkloadType: "Deployment",
 				ShutdownTimeout:        30000,
 				StatusHandler:          "status",
-				GolangVersion:          "1.25.4",
+				GolangVersion:          "1.26.4",
 				ModulePath:             "github.com/gorundebug/inventoryservice",
 			},
 		},

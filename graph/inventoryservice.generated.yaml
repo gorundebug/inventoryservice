@@ -52,7 +52,7 @@ services:
                         "y": -400
         defaultCallSemantics: FunctionCall
         environment: ""
-        golangVersion: 1.25.4
+        golangVersion: 1.26.4
         grpcHost: 0.0.0.0
         grpcPort: 9202
         httpHost: 0.0.0.0
@@ -125,7 +125,7 @@ services:
         startupHandler: health/startup
         statusHandler: status
 settings:
-    moduleVersion: v0.2.157
+    moduleVersion: v0.2.158
     name: Example
     repoPath: github.com/gorundebug/goexample
 types:
