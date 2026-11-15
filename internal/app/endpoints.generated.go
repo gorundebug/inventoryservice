@@ -12,6 +12,11 @@ type serviceHandlers struct {
 	processOrderItem endpoint.ProcessOrderItemSourceType
 }
 
+// Each Sink has its own optional typed submission policy. Set these through
+// customMakersInit; the same initialization runs in isolated Workflow graphs.
+type serviceTemporalSubmissionOptions struct {
+}
+
 type serviceEndpoints struct {
 	handlers serviceHandlers
 
