@@ -27,6 +27,7 @@ type serviceMakers struct {
 }
 
 func (makers *serviceMakers) initMakers(ctx context.Context) error {
+
 	if makers.grpcServerMaker == nil {
 		makers.grpcServerMaker = func(_ context.Context, env runtime.RuntimeEnvironment) (*grpc.Server, error) {
 			var opts []grpc.ServerOption
