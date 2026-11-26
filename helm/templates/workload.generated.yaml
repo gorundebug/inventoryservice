@@ -1,3 +1,31 @@
+{{- if and (ne .Values.workloadType "Deployment") .Values.deploymentStrategy }}
+{{ fail "deploymentStrategy requires Deployment" }}
+{{- end }}
+{{- if and (ne .Values.workloadType "StatefulSet") .Values.updateStrategy }}
+{{ fail "updateStrategy requires StatefulSet" }}
+{{- end }}
+{{- if and (eq (default "" .Values.deploymentStrategy.type) "Recreate") .Values.deploymentStrategy.rollingUpdate }}
+{{ fail "Recreate cannot contain rollingUpdate settings" }}
+{{- end }}
+{{- if and (eq (default "" .Values.updateStrategy.type) "OnDelete") .Values.updateStrategy.rollingUpdate }}
+{{ fail "OnDelete cannot contain rollingUpdate settings" }}
+{{- end }}
+{{- $containerNames := dict (include "inventoryservice.name" .) true }}
+{{- range $group := list .Values.initContainers .Values.extraContainers }}
+{{- range $group }}
+{{- if hasKey $containerNames .name }}
+{{ fail "Pod container names must be unique" }}
+{{- end }}
+{{- $_ := set $containerNames .name true }}
+{{- end }}
+{{- end }}
+{{- $envNames := dict }}
+{{- range .Values.extraEnv }}
+{{- if or (hasKey $envNames .name) (hasKey $.Values.secretEnv .name) }}
+{{ fail "Explicit environment names must be unique" }}
+{{- end }}
+{{- $_ := set $envNames .name true }}
+{{- end }}
 apiVersion: apps/v1
 kind: {{ .Values.workloadType }}
 metadata:
@@ -12,6 +40,14 @@ spec:
   replicas: {{ .Values.replicaCount }}
   {{- if eq .Values.workloadType "StatefulSet" }}
   serviceName: {{ printf "%s-headless" (include "inventoryservice.fullname" .) }}
+  {{- end }}
+  {{- if and (eq .Values.workloadType "Deployment") .Values.deploymentStrategy }}
+  strategy:
+    {{ toYaml .Values.deploymentStrategy | nindent 4 }}
+  {{- end }}
+  {{- if and (eq .Values.workloadType "StatefulSet") .Values.updateStrategy }}
+  updateStrategy:
+    {{ toYaml .Values.updateStrategy | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:
@@ -33,12 +69,23 @@ spec:
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext:
         {{ toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if ne .Values.terminationGracePeriodSeconds nil }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ include "inventoryservice.name" . }}
           image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{ toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.command }}
+          command:
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.args }}
           args:
             {{ toYaml . | nindent 12 }}
@@ -53,6 +100,22 @@ spec:
             {{- with .Values.extraEnvFrom }}
             {{ toYaml . | nindent 12 }}
             {{- end }}
+          {{- if or .Values.extraEnv .Values.secretEnv }}
+          env:
+            {{- with .Values.extraEnv }}
+            {{ toYaml . | nindent 12 }}
+            {{- end }}
+            {{- range $name, $secret := .Values.secretEnv }}
+            - name: {{ $name | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret.name | quote }}
+                  key: {{ $secret.key | quote }}
+                  {{- if hasKey $secret "optional" }}
+                  optional: {{ $secret.optional }}
+                  {{- end }}
+            {{- end }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 9092
@@ -62,24 +125,35 @@ spec:
               protocol: TCP
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
+            {{- if .Values.probes.startup.spec }}
+            {{ toYaml .Values.probes.startup.spec | nindent 12 }}
+            {{- else }}
             httpGet:
               path: {{ .Values.probes.startup.path }}
               port: http
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            {{- end }}
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
+            {{- if .Values.probes.readiness.spec }}
+            {{ toYaml .Values.probes.readiness.spec | nindent 12 }}
+            {{- else }}
             httpGet:
               path: {{ .Values.probes.readiness.path }}
               port: http
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+            {{- end }}
           {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
+            {{- if .Values.probes.liveness.spec }}
+            {{ toYaml .Values.probes.liveness.spec | nindent 12 }}
+            {{- else }}
             httpGet:
               path: {{ .Values.probes.liveness.path }}
               port: http
@@ -87,6 +161,7 @@ spec:
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+            {{- end }}
           {{- end }}
           resources:
             {{ toYaml .Values.resources | nindent 12 }}
@@ -94,6 +169,9 @@ spec:
           volumeMounts:
             {{ toYaml . | nindent 12 }}
           {{- end }}
+        {{- with .Values.extraContainers }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.extraVolumes }}
       volumes:
         {{ toYaml . | nindent 8 }}

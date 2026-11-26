@@ -3,7 +3,7 @@
   "type": "object",
   "required": ["replicaCount", "workloadType", "image", "service", "metrics", "probes", "env", "args"],
   "properties": {
-    "replicaCount": {"type": "integer", "minimum": 1},
+    "replicaCount": {"type": "integer", "minimum": 0},
     "workloadType": {"enum": ["Deployment", "StatefulSet"]},
     "image": {
       "type": "object",
@@ -43,7 +43,15 @@
       },
       "additionalProperties": false
     },
-    "probes": {"type": "object"},
+    "terminationGracePeriodSeconds": {"type": ["integer", "null"], "minimum": 0},
+    "deploymentStrategy": {"type": "object", "properties": {"type": {"enum": ["Recreate", "RollingUpdate"]}, "rollingUpdate": {"type": "object"}}, "additionalProperties": false},
+    "updateStrategy": {"type": "object", "properties": {"type": {"enum": ["OnDelete", "RollingUpdate"]}, "rollingUpdate": {"type": "object"}}, "additionalProperties": false},
+    "command": {"type": "array", "items": {"type": "string"}},
+    "initContainers": {"type": "array", "items": {"$ref": "#/definitions/container"}},
+    "extraContainers": {"type": "array", "items": {"$ref": "#/definitions/container"}},
+    "extraEnv": {"type": "array", "items": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string", "minLength": 1}, "value": {"type": "string"}, "valueFrom": {"type": "object"}}, "oneOf": [{"required": ["value"]}, {"required": ["valueFrom"]}], "additionalProperties": false}},
+    "secretEnv": {"type": "object", "additionalProperties": {"type": "object", "required": ["name", "key"], "properties": {"name": {"type": "string", "minLength": 1}, "key": {"type": "string", "minLength": 1}, "optional": {"type": "boolean"}}, "additionalProperties": false}},
+    "probes": {"type": "object", "properties": {"startup": {"$ref": "#/definitions/probeOptions"}, "readiness": {"$ref": "#/definitions/probeOptions"}, "liveness": {"$ref": "#/definitions/probeOptions"}}},
     "env": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
     "secretEnvFrom": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
     "extraEnvFrom": {"type": "array"},
@@ -62,6 +70,27 @@
     "nodeSelector": {"type": "object"},
     "tolerations": {"type": "array"},
     "affinity": {"type": "object"}
+  },
+  "definitions": {
+    "container": {"type": "object", "required": ["name", "image"], "properties": {"name": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63}, "image": {"type": "string", "minLength": 1}}, "additionalProperties": true},
+    "probeOptions": {"type": "object", "properties": {"enabled": {"type": "boolean"}, "spec": {"$ref": "#/definitions/probeSpec"}}, "additionalProperties": true},
+    "probeSpec": {
+      "type": "object",
+      "oneOf": [{"maxProperties": 0}, {"required": ["exec"]}, {"required": ["httpGet"]}, {"required": ["tcpSocket"]}, {"required": ["grpc"]}],
+      "properties": {
+        "exec": {"type": "object", "required": ["command"], "properties": {"command": {"type": "array", "minItems": 1, "items": {"type": "string"}}}, "additionalProperties": false},
+        "httpGet": {"type": "object", "required": ["port"]},
+        "tcpSocket": {"type": "object", "required": ["port"]},
+        "grpc": {"type": "object", "required": ["port"], "properties": {"port": {"type": "integer", "minimum": 1, "maximum": 65535}, "service": {"type": "string"}}, "additionalProperties": false},
+        "initialDelaySeconds": {"type": "integer", "minimum": 0},
+        "periodSeconds": {"type": "integer", "minimum": 1},
+        "timeoutSeconds": {"type": "integer", "minimum": 1},
+        "successThreshold": {"type": "integer", "minimum": 1},
+        "failureThreshold": {"type": "integer", "minimum": 1},
+        "terminationGracePeriodSeconds": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": true
 }
